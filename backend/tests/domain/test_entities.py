@@ -1,7 +1,6 @@
-"""Sanity: encje z planu da się zaimportować i utworzyć."""
-
 from uuid import uuid4
 
+from ksi.db.base import Base
 from ksi.domain import (
     Submission,
     SubmissionStatus,
@@ -9,15 +8,13 @@ from ksi.domain import (
     TaskJudgeMode,
     TestResult,
     User,
-    UserRole,
 )
 
 
-def test_user_is_user_or_admin() -> None:
-    regular = User(id=uuid4(), username="ala", role=UserRole.USER)
-    admin = User(id=uuid4(), username="admin", role=UserRole.ADMIN)
-    assert regular.role == UserRole.USER
-    assert admin.role == UserRole.ADMIN
+def test_models_are_sqlalchemy_orm() -> None:
+    for model in (User, Task, Submission, TestResult):
+        assert issubclass(model, Base)
+        assert hasattr(model, "__tablename__")
 
 
 def test_task_simple_or_checker() -> None:

@@ -2,16 +2,16 @@
 
 Backend API (FastAPI).
 
-## Encje domenowe
+## Encje (modele ORM)
 
-Opis pojęć systemu (kod: `src/ksi/domain/`):
+Modele SQLAlchemy 2 (`src/ksi/domain/entities.py`), sesja w `src/ksi/db/`:
 
-| Encja | Opis |
-|-------|------|
-| **User** | Użytkownik — zwykły (`user`) lub administrator (`admin`). |
-| **Task** | Zadanie programistyczne; oceniane prostymi testami (porównanie outputu) albo sprawdzarką. |
-| **Submission** | Zgłoszenie rozwiązania; trafia do kolejki i jest oceniane w tle. |
-| **TestResult** | Wynik pojedynczego testu dla danego zgłoszenia. |
+| Model | Tabela | Opis |
+|-------|--------|------|
+| **User** | `users` | Użytkownik — zwykły (`user`) lub administrator (`admin`). |
+| **Task** | `tasks` | Zadanie; proste testy (porównanie outputu) albo sprawdzarka. |
+| **Submission** | `submissions` | Zgłoszenie rozwiązania; kolejka → ocena w tle. |
+| **TestResult** | `test_results` | Wynik pojedynczego testu dla zgłoszenia. |
 
 ## Wymagania
 

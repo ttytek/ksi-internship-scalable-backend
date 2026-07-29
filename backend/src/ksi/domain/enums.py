@@ -3,13 +3,6 @@
 from enum import StrEnum
 
 
-class UserRole(StrEnum):
-    """Rola użytkownika w systemie."""
-
-    USER = "user"
-    ADMIN = "admin"
-
-
 class TaskJudgeMode(StrEnum):
     """Sposób oceniania rozwiązania zadania."""
 
@@ -24,5 +17,10 @@ class SubmissionStatus(StrEnum):
 
     QUEUED = "queued"
     RUNNING = "running"
-    DONE = "done"
-    ERROR = "error"
+    ACCEPTED = "accepted"
+    WRONG_ANSWER = "wrong_answer"
+    TIME_LIMIT = "time_limit"
+    RUNTIME_ERROR = "runtime_error"
+    COMPILATION_ERROR = "compilation_error"
+    INTERNAL_ERROR = "internal_error"
+    MEMORY_LIMIT_EXCEEDED = "memory limit exceeded"
