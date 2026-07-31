@@ -18,8 +18,9 @@ services:
   api:
     build: .
     ports:
-      - "8000:8000"
+      - "${APP_PORT}:${APP_PORT}"
     environment:
+      APP_PORT: "${APP_PORT}"
       APP_NAME: ksi
       APP_ENV: development
       DATABASE_URL: postgresql+psycopg://ksi:ksi@db:5432/ksi

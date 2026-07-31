@@ -10,6 +10,6 @@ RUN pip install --no-cache-dir .
 ENV PYTHONPATH=/app/src
 ENV PYTHONUNBUFFERED=1
 
-EXPOSE 8000
+EXPOSE $APP_PORT
 
-CMD ["uvicorn", "ksi.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD uvicorn ksi.main:app --host 0.0.0.0 --port $APP_PORT

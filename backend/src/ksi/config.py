@@ -4,6 +4,7 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from os import getenv
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -17,7 +18,7 @@ class Settings(BaseSettings):
     log_level: str = "info"
 
     api_host: str = "0.0.0.0"
-    api_port: int = 8000
+    api_port: int = int(getenv("APP_PORT", 8000))
 
     database_url: str = "postgresql+psycopg://ksi:ksi@localhost:5432/ksi"
 
