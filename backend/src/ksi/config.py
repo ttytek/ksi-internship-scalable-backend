@@ -1,10 +1,10 @@
 """Application settings."""
 
 from functools import lru_cache
+from os import getenv
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from os import getenv
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(

@@ -1,0 +1,93 @@
+{
+  "name": "luckybal",
+  "description": "A Little Elephant from the Zoo of Lviv likes lucky strings, i.e., the strings that consist only of the lucky digits 4 and 7.\nThe Little Elephant calls some string T of the length M balanced if there exists at least one integer X (1 ≤ X ≤ M) such that the number of digits 4 in the substring T[1, X - 1] is equal to the number of digits 7 in the substring T[X, M]. For example, the string S = 7477447 is balanced since S[1, 4] = 7477 has 1 digit 4 and S[5, 7] = 447 has 1 digit 7. On the other hand, one can verify that the string S = 7 is not balanced.\n The Little Elephant has the string S of the length N. He wants to know the number of such pairs of integers (L; R) that 1 ≤ L ≤ R ≤ N and the substring S[L, R]  is balanced. Help him to find this number.\nNotes.\n\nLet S be some lucky string. Then\n\n\n|S| denotes the length of the string S;\n\nS[i] (1 ≤ i ≤ |S|) denotes the i^th character of S (the numeration of characters starts from 1);\n\n S[L, R] (1 ≤ L ≤ R ≤ |S|) denotes the string with the following sequence of characters: S[L], S[L + 1], ..., S[R], and is called a substring of S. For L > R we mean by S[L, R] an empty string.\n\n\n\nInput\nThe first line of the input file contains a single integer T, the number of test cases. Each of the following T lines contains one string, the string S for the corresponding test case. The input file does not contain any whitespaces.\n\nOutput\nFor each test case output a single line containing the answer for this test case.\n\n\nConstraints\n 1 ≤ T ≤ 10\n 1 ≤ |S| ≤ 100000\n S consists only of the lucky digits 4 and 7.\n\n\n\nExample\n\nInput:\n4\n47\n74\n477\n4747477\n\nOutput:\n2\n2\n3\n23\n\n\n\nExplanation\nIn the first test case balance substrings are S[1, 1] = 4 and S[1, 2] = 47.\nIn the second test case balance substrings are S[2, 2] = 4 and S[1, 2] = 74.\nUnfortunately, we can't provide you with the explanations of the third and the fourth test cases. You should figure it out by yourself. Please, don't ask about this in comments.",
+  "public_tests": {
+    "input": [
+      "4\n47\n74\n477\n4747477"
+    ],
+    "output": [
+      "2\n2\n3\n23\n"
+    ]
+  },
+  "private_tests": {
+    "input": [],
+    "output": []
+  },
+  "generated_tests": {
+    "input": [
+      "4\n47\n47\n477\n4747477",
+      "4\n7\n47\n477\n4747477",
+      "4\n4\n47\n477\n4747477",
+      "4\n7\n7\n477\n4747477",
+      "4\n7\n44\n477\n4747477",
+      "4\n44\n74\n477\n4747477",
+      "4\n7\n44\n7\n4747477",
+      "4\n47\n44\n477\n4747477",
+      "4\n47\n4\n477\n4747477",
+      "4\n7\n7\n447\n4747477",
+      "4\n47\n7\n477\n4747477",
+      "4\n44\n44\n477\n4747477",
+      "4\n4\n44\n477\n4747477",
+      "4\n74\n47\n477\n4747477",
+      "4\n44\n47\n477\n4747477",
+      "4\n7\n74\n477\n4747477",
+      "4\n7\n77\n477\n4747477",
+      "4\n47\n77\n477\n4747477",
+      "4\n4\n74\n477\n4747477"
+    ],
+    "output": [
+      "2\n2\n3\n23\n",
+      "0\n2\n3\n23\n",
+      "1\n2\n3\n23\n",
+      "0\n0\n3\n23\n",
+      "0\n3\n3\n23\n",
+      "3\n2\n3\n23\n",
+      "0\n3\n0\n23\n",
+      "2\n3\n3\n23\n",
+      "2\n1\n3\n23\n",
+      "0\n0\n5\n23\n",
+      "2\n0\n3\n23\n",
+      "3\n3\n3\n23\n",
+      "1\n3\n3\n23\n",
+      "2\n2\n3\n23\n",
+      "3\n2\n3\n23\n",
+      "0\n2\n3\n23\n",
+      "0\n0\n3\n23\n",
+      "2\n0\n3\n23\n",
+      "1\n2\n3\n23\n"
+    ]
+  },
+  "source": 1,
+  "difficulty": 2,
+  "solutions": {
+    "language": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "solution": [
+      "n = input()\nfor i in range(n):\n    str = raw_input()\n    l = len(str)\n    megacounter = 0\n    counter = 0\n    i = 0\n    while(1):\n        while(i<l and str[i]=='7'):\n            i=i+1\n            counter=counter+1\n        if(i>=l):\n            break\n        megacounter = megacounter + (counter*(counter+1))/2\n        i=i+1\n        counter=0\n    megacounter = megacounter + (counter*(counter+1))/2\n    supercounter = (l*(l+1))/2 - megacounter\n    print supercounter",
+      "def calc(str):\n\tlength = len(str)\n\tprev_four = -1 \n\tcount = 0 \n\tfor i in range(0,length):\n\t\tif str[i] == \"4\":\n\t\t\tcount+=(i-prev_four)*(length-i)\n\t\t\tprev_four = i\n\treturn count\n\t\t\n\n\nt = int(raw_input())\nfor i in range(0,t):\n\tstr = raw_input()\n\tprint calc(str)",
+      "#Program question at: http://www.codechef.com/problems/LUCKYBAL\n\nt = int(raw_input())\n\nfor t in range(t):\n\ts = raw_input()\n\tn=0\n\tl = len(s)\n\ts += '4'\n\tans = (l*(l+1))/2\n\tfor ch in s:\n\t\tif ch == '7': n+=1\n\t\telse:\n\t\t\tans -= (n*(n+1))/2\n\t\t\tn=0\n\tprint ans",
+      "t=int(raw_input())\nfor z in xrange(t):\n    s=raw_input()\n    n=len(s)\n    c=s.count('4')+(n*(n-1))/2\n    i=0\n    while (i<(n-1)):\n        cur=s[i]\n        l=0\n        while (i<n and s[i]==cur):\n            i+=1\n            l+=1\n        if (cur=='7'):\n            c-=(l*(l-1))/2\n        \n            \n    print c",
+      "for i in range(input()):\n    s=raw_input()\n    pos=-1\n    ans=0\n    for j in range(len(s)):\n        if s[j]=='4':\n            pos=j\n        if pos!=-1:\n            ans+=pos+1\n    print ans"
+    ]
+  },
+  "incorrect_solutions": {
+    "language": [],
+    "solution": []
+  },
+  "cf_contest_id": 0,
+  "cf_index": "",
+  "cf_points": 0.0,
+  "cf_rating": 0,
+  "cf_tags": [],
+  "is_description_translated": false,
+  "untranslated_description": "",
+  "time_limit": null,
+  "memory_limit_bytes": 0,
+  "input_file": "",
+  "output_file": ""
+}

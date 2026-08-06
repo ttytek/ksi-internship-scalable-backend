@@ -23,6 +23,4 @@ htmlcov/
 *.swp
 .DS_Store
 
-# Local data (later PRs)
-data/tasks/raw/
 *.log

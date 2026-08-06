@@ -1,0 +1,1 @@
+"""Logika aplikacyjna (sędzia, rankingi)."""

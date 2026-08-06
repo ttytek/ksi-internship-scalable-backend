@@ -1,0 +1,30 @@
+Funkcje (co użytkownicy będą chcieli robić z systemem):
+
+ stworzenie uzytkownika
+ stworzenie zadania + testow / programu testującego
+ wysłanie zadania - odpalenie testerki ( prostej - porownującej output z expected output lub uruchamiającej dodatkowy kod)
+ przejrzenie swoich zgloszeń
+ wyswietlenie wynikow testow dla konkretnego zgloszenia
+ przejrzenie rankingu pewnego zadania
+ przejrzenie listy zadan
+ wyswietlenie konkretnego zadania
+ globalny ranking (ktory uzytkownik ma najwiecej punktow)
+
+encje: uzytkownik (zwykly uzytkownik lub administrator) , zadanie (testy proste lub sprawdzarka), zgloszenie, wynik testu
+
+operacje/endpointy:
+stworzenie uzytkownika
+stworzenie zadania (tresc i opcjonalnie testy/sprawdzarka)
+dodanie/zaktualizowanie testow/sprawdzarki do zadania (najwnowsze zgloszenie od kazdego uzytkownika powinno byc sprawdzone jescze raz)
+wyslanie rozwiązania zadania (kod zostaje umieszczony w kolejce do sprawdzenia), 
+przejrzenie zgloszen pojedynczego uzytkownika, 
+wyswietlenie wyniku testów dla jednego zgloszenia
+przejrzenie zgloszen  wszystkich uzytkownikow do konkretnego zadania (z roznymi opcjami sortowania), 
+przejrzenie zadan, 
+wyswietlenie zadania
+ranking uzytkowników
+
+
+w tle worker pobiera rozwiązania z kolejki i testuje je, umieszczając wyniki testów  w bazie danych
+
+Części których w pierwszym pr nie dotykamy: autentykacja, sandbox do sprawdzania zadan, frontend

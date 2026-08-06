@@ -1,0 +1,45 @@
+{
+  "name": "tf01",
+  "description": "An established group of scientists are working on finding solution to NP hard problems. They claim Subset Sum  as an NP-hard problem. The problem is to determine whether there exists a subset of a given set S whose sum is a given number K.  \nYou are a computer engineer and you claim to solve this problem given that all numbers in the set are non-negative. Given a set S of size N of non-negative integers, find whether there exists a subset whose sum is K.\n\nInput\nFirst line of input contains T, the number of test cases. T test cases follow. \nEach test case contains 2 lines. First line contains two integers N and K. Next line contains N space separated non-negative integers (each less than 100000).\n0 < T < 1000\n0 < N < 1000\n0 < K < 1000\n\nOutput\nOutput T lines, one for each test case. Every line should be either 0 or 1 depending on whether such a subset exists or not.\n\nExample\n\nInput:\n2\n5 10\n3 4 6 1 9\n3 2\n1 3 4\n\nOutput:\n1\n0",
+  "public_tests": {
+    "input": [
+      "2\n5 10\n3 4 6 1 9\n3 2\n1 3 4"
+    ],
+    "output": [
+      "1\n0"
+    ]
+  },
+  "private_tests": {
+    "input": [],
+    "output": []
+  },
+  "generated_tests": {
+    "input": [],
+    "output": []
+  },
+  "source": 1,
+  "difficulty": 6,
+  "solutions": {
+    "language": [
+      1
+    ],
+    "solution": [
+      "import sys\n\nfor __ in range(input()) :\n    n , k = map(int,sys.stdin.readline().split())\n    lists = map(int,sys.stdin.readline().split())\n    dp = [0]*(k+1)\n    dp[0]=1\n    for i in lists :\n        for j in range(k-i,-1,-1) :\n            if dp[k] :\n                break\n            if dp[j] :\n                dp[j+i] = 1\n    print dp[k]"
+    ]
+  },
+  "incorrect_solutions": {
+    "language": [],
+    "solution": []
+  },
+  "cf_contest_id": 0,
+  "cf_index": "",
+  "cf_points": 0.0,
+  "cf_rating": 0,
+  "cf_tags": [],
+  "is_description_translated": false,
+  "untranslated_description": "",
+  "time_limit": null,
+  "memory_limit_bytes": 0,
+  "input_file": "",
+  "output_file": ""
+}

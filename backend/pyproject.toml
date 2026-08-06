@@ -23,6 +23,9 @@ dev = [
     "ruff>=0.8.0",
 ]
 
+[project.scripts]
+ksi-seed = "ksi.scripts.seed_dataset:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/ksi"]
 
@@ -37,3 +40,5 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+# FastAPI: Depends()/Query() w defaultach argumentów to standardowy wzorzec.
+ignore = ["B008"]

@@ -1,0 +1,1 @@
+python3 ./extract_problems.py 0-10 --out-dir ./problems

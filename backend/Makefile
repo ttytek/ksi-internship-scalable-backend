@@ -1,4 +1,4 @@
-.PHONY: up down build test lint install
+.PHONY: up down build test lint install seed
 
 install:
 	pip install -e ".[dev]"
@@ -17,3 +17,6 @@ test:
 
 lint:
 	ruff check src tests
+
+seed:
+	python -m ksi.scripts.seed_dataset --dir ../dataset/problems
