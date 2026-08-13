@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
@@ -16,16 +16,41 @@ if __name__ == "__main__":
     main()
 `;
 
+const CODE_EXTENSIONS = new Set([
+  ".py",
+  ".pyw",
+  ".txt",
+  ".pyi",
+  "",
+]);
+
+function isLikelyCodeFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  const dot = name.lastIndexOf(".");
+  const ext = dot >= 0 ? name.slice(dot) : "";
+  if (CODE_EXTENSIONS.has(ext)) return true;
+  // Allow common text MIME types from OS / editors
+  return (
+    file.type === "" ||
+    file.type.startsWith("text/") ||
+    file.type === "application/x-python" ||
+    file.type === "application/octet-stream"
+  );
+}
+
 export default function TaskPage() {
   const { taskId } = useParams<{ taskId: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [ranking, setRanking] = useState<TaskRankEntry[]>([]);
   const [code, setCode] = useState(DEFAULT_CODE);
+  const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
     if (!taskId) return;
@@ -37,6 +62,46 @@ export default function TaskPage() {
       })
       .catch((e: Error) => setError(e.message));
   }, [taskId]);
+
+  async function loadCodeFromFile(file: File) {
+    if (!isLikelyCodeFile(file)) {
+      setError("Obsługiwane są pliki tekstowe z kodem (np. .py, .txt).");
+      return;
+    }
+    // Cap size ~256 KiB to avoid accidental huge drops
+    if (file.size > 256 * 1024) {
+      setError("Plik jest za duży (max 256 KB).");
+      return;
+    }
+    try {
+      const text = await file.text();
+      setCode(text);
+      setFileName(file.name);
+      setError(null);
+    } catch {
+      setError("Nie udało się odczytać pliku.");
+    }
+  }
+
+  function onDragOver(e: DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(true);
+  }
+
+  function onDragLeave(e: DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(false);
+  }
+
+  function onDrop(e: DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void loadCodeFromFile(file);
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -104,13 +169,50 @@ export default function TaskPage() {
             </p>
           )}
           <form onSubmit={onSubmit}>
-            <textarea
-              className="code-input"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              rows={16}
-              spellCheck={false}
-            />
+            <div
+              className={`drop-zone ${dragging ? "dragging" : ""}`}
+              onDragOver={onDragOver}
+              onDragEnter={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+            >
+              <p className="muted drop-hint">
+                Przeciągnij plik z kodem (.py) tutaj albo{" "}
+                <button
+                  type="button"
+                  className="linkish"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  wybierz plik
+                </button>
+                {fileName && (
+                  <>
+                    {" · "}załadowano: <code>{fileName}</code>
+                  </>
+                )}
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".py,.pyw,.txt,text/x-python,text/plain"
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void loadCodeFromFile(file);
+                  e.target.value = "";
+                }}
+              />
+              <textarea
+                className="code-input"
+                value={code}
+                onChange={(e) => {
+                  setCode(e.target.value);
+                  setFileName(null);
+                }}
+                rows={16}
+                spellCheck={false}
+              />
+            </div>
             {error && <p className="error">{error}</p>}
             <button className="btn primary" type="submit" disabled={!user || submitting}>
               {submitting ? "Wysyłanie…" : "Wyślij"}

@@ -58,18 +58,17 @@ def test_submit_and_accept(
     assert detail.status_code == 200
     body = detail.json()
     assert body["status"] == "accepted"
+    # Hidden test still counts toward score, but is not returned in detail.
     assert body["score"] == 2
     assert body["max_score"] == 2
-    assert len(body["test_results"]) == 2
+    assert len(body["test_results"]) == 1
 
-    # Public: widać input/output; hidden: nie.
-    by_ord = {tr["ordinal"]: tr for tr in body["test_results"]}
-    assert by_ord[1]["visibility"] == "public"
-    assert by_ord[1]["input"] == "hello\n"
-    assert by_ord[1]["actual_output"] is not None
-    assert by_ord[2]["visibility"] == "hidden"
-    assert by_ord[2]["input"] is None
-    assert by_ord[2]["actual_output"] is None
+    public = body["test_results"][0]
+    assert public["visibility"] == "public"
+    assert public["ordinal"] == 1
+    assert public["input"] == "hello\n"
+    assert public["actual_output"] is not None
+    assert all(tr["visibility"] == "public" for tr in body["test_results"])
 
 
 def test_submit_wrong_answer(

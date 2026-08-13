@@ -160,11 +160,15 @@ def _to_detail(db: Session, submission: Submission) -> SubmissionDetail:
         for t in db.query(TaskTest).filter(TaskTest.id.in_(test_ids)).all():
             tests_by_id[t.id] = t
 
+    # Only public sample tests are exposed in the API response.
+    # Hidden tests still affect score/status, but their I/O, messages and
+    # per-case verdicts are not returned to clients.
     results: list[TestResultOut] = []
     for r in sorted(submission.test_results, key=lambda x: x.ordinal):
         t = tests_by_id.get(r.test_id)
         visibility = t.visibility if t else None
-        is_public = visibility == TestVisibility.PUBLIC
+        if visibility != TestVisibility.PUBLIC:
+            continue
         results.append(
             TestResultOut(
                 id=r.id,
@@ -177,9 +181,9 @@ def _to_detail(db: Session, submission: Submission) -> SubmissionDetail:
                 time_ms=r.time_ms,
                 memory_kb=r.memory_kb,
                 visibility=visibility,
-                input=t.input if is_public and t else None,
-                expected_output=t.expected_output if is_public and t else None,
-                actual_output=r.actual_output if is_public else None,
+                input=t.input if t else None,
+                expected_output=t.expected_output if t else None,
+                actual_output=r.actual_output,
             )
         )
 
