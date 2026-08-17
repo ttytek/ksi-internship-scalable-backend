@@ -10,7 +10,8 @@ Modele SQLAlchemy 2 (`src/ksi/domain/entities.py`), sesja w `src/ksi/db/`:
 |-------|--------|------|
 | **User** | `users` | Użytkownik (bez ról / hasła — login po username). |
 | **Task** | `tasks` | Zadanie; proste testy albo sprawdzarka. |
-| **TaskTest** | `task_tests` | Przypadek testowy (`public` / `hidden`). |
+| **TaskTest** | `task_tests` | Przypadek testowy (`public` w DB / `hidden` w packu S3). |
+| **TaskTestPackRevision** | `task_test_pack_revisions` | Rewizja zipa z testami głównymi. |
 | **Submission** | `submissions` | Zgłoszenie rozwiązania; kolejka → ocena w tle. |
 | **TestResult** | `test_results` | Wynik pojedynczego testu (werdykt, punkty, czas). |
 
@@ -57,10 +58,22 @@ curl http://127.0.0.1:8000/health
 
 ### Seed z datasetu
 
+Problemy z `private_tests` / `generated_tests` wymagają skonfigurowanego S3
+(`S3_ENDPOINT_URL`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` — zob. `.env.example`).
+Bez bucketa seed wypisze `ERR  …: S3 is not configured but this problem has private/generated tests`
+(datasetowe `brcktsrm` itd. mają generated tests). Same przykłady publiczne seedują się bez S3.
+
 ```bash
-# z katalogu backend, przy działającym Postgresie
+# z katalogu backend, przy działającym Postgresie i uzupełnionych S3_*
 python -m ksi.scripts.seed_dataset --dir ../dataset/problems
 # lub: ksi-seed --dir ../dataset/problems
+```
+
+Nowa rewizja packa (bez kasowania starych testów i bez rejudge):
+
+```bash
+python -m ksi.scripts.attach_main_pack --slug brcktsrm --zip pack.zip
+# lub: ksi-attach-pack --task-id <uuid> --zip pack.zip
 ```
 
 Domyślny `DATABASE_URL`: `postgresql+psycopg://ksi:ksi@localhost:5432/ksi`

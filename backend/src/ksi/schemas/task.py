@@ -1,16 +1,33 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ksi.domain.enums import TaskJudgeMode, TestVisibility
+
+_MAX_SAMPLE_IO_CHARS = 64_000
+_MAX_SAMPLES = 3
 
 
 class TaskTestCreate(BaseModel):
     visibility: TestVisibility = TestVisibility.PUBLIC
-    input: str
-    expected_output: str
-    points: int = Field(default=1, ge=0)
+    input: str = Field(max_length=_MAX_SAMPLE_IO_CHARS)
+    expected_output: str = Field(max_length=_MAX_SAMPLE_IO_CHARS)
+    points: int = Field(default=0, ge=0)
+
+    @field_validator("visibility")
+    @classmethod
+    def _public_only(cls, value: TestVisibility) -> TestVisibility:
+        if value != TestVisibility.PUBLIC:
+            raise ValueError("only public sample tests are allowed")
+        return value
+
+    @field_validator("points")
+    @classmethod
+    def _zero_points(cls, value: int) -> int:
+        if value != 0:
+            raise ValueError("sample tests must have 0 points")
+        return value
 
 
 class TaskCreate(BaseModel):
@@ -23,7 +40,7 @@ class TaskCreate(BaseModel):
     memory_limit_mb: int = Field(default=256, ge=16, le=4096)
     checker_source: str | None = None
     is_published: bool = True
-    tests: list[TaskTestCreate] = Field(default_factory=list)
+    tests: list[TaskTestCreate] = Field(default_factory=list, max_length=_MAX_SAMPLES)
 
 
 class TaskTestPublic(BaseModel):

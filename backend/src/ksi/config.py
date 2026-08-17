@@ -22,6 +22,15 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://ksi:ksi@localhost:5432/ksi"
 
+    s3_endpoint_url: str | None = None
+    s3_bucket: str | None = None
+    s3_region: str = "us-east-1"
+    s3_access_key: str | None = None
+    s3_secret_key: str | None = None
+    s3_prefix: str = ""
+    s3_path_style: bool = True
+    s3_cache_dir: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -1,4 +1,11 @@
-from ksi.domain.entities import Submission, Task, TaskTest, TestResult, User
+from ksi.domain.entities import (
+    Submission,
+    Task,
+    TaskTest,
+    TaskTestPackRevision,
+    TestResult,
+    User,
+)
 from ksi.domain.enums import (
     SubmissionStatus,
     TaskJudgeMode,
@@ -10,6 +17,7 @@ __all__ = [
     "User",
     "Task",
     "TaskTest",
+    "TaskTestPackRevision",
     "TaskJudgeMode",
     "TestVisibility",
     "Submission",

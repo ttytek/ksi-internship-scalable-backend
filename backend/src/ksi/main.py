@@ -9,15 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 import ksi.domain.entities  # noqa: F401
 from ksi.api.router import api_router
 from ksi.config import get_settings
-from ksi.db.base import Base
+from ksi.db.schema import ensure_schema
 from ksi.db.session import get_engine
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """Tworzy tabele przy starcie (MVP — bez Alembic)."""
-    engine = get_engine()
-    Base.metadata.create_all(bind=engine)
+    """Tworzy brakujące tabele i ALTER-uje istniejące `task_tests`."""
+    ensure_schema(get_engine())
     yield
 
 

@@ -111,6 +111,12 @@ Dokumentacja API: http://127.0.0.1:8000/docs
 
 ### Krok 3 — Seed zadań (osobny terminal)
 
+Zadania z testami prywatnymi/generowanymi idą do S3 (zip per rewizja). Uzupełnij w `backend/.env` zmienne `S3_*` z `.env.example`.
+
+Bez bucketa / kluczy seed **nie** zaimportuje `brcktsrm` itd. — oczekiwany wynik to
+`ERR  …: S3 is not configured but this problem has private/generated tests`.
+Same przykłady publiczne seedują się bez S3.
+
 ```bash
 cd backend
 source .venv/bin/activate
@@ -118,7 +124,9 @@ source .venv/bin/activate
 python -m ksi.scripts.seed_dataset --dir ../dataset/problems
 ```
 
-Oczekiwane: linie `ok   brcktsrm …`, `ok   comm3 …` itd.
+Z działającym S3: linie `ok   brcktsrm …`, `ok   comm3 …` itd.
+
+Doklejenie nowej rewizji packa: `python -m ksi.scripts.attach_main_pack --slug … --zip pack.zip`.
 
 ### Krok 4 — Frontend (osobny terminal)
 
@@ -167,14 +175,15 @@ python -m ksi.scripts.seed_dataset --dir ../dataset/problems
 | `connection refused` / brak Dockera | Daemon wyłączony | `sudo systemctl start docker` |
 | `permission denied` na `docker.sock` | Brak grupy `docker` | `sudo usermod -aG docker $USER` + ponowne logowanie; tymczasowo `sudo docker compose …` |
 | Frontend nie widzi API | Zły port proxy | Dopasuj `vite.config.ts` do portu API |
-| Pusta lista zadań | Brak seeda | Krok 3 |
+| Pusta lista zadań | Brak seeda albo seed bez S3 | Krok 3 — uzupełnij `S3_*` albo zaakceptuj `ERR … S3 is not configured` |
+| `ERR … S3 is not configured` przy seedzie | Puste `S3_BUCKET` / klucze; dataset ma generated tests | Uzupełnij `S3_*` w `.env` (bez MinIO w compose) |
 
 ---
 
 ## Co jest w MVP
 
 - użytkownik bez ról i bez hasła (login = username)
-- zadania z testami publicznymi i ukrytymi
+- zadania z testami publicznymi (w DB) i ukrytymi (zip w S3, rewizje)
 - zgłoszenia + sędzia Python (porównanie stdout)
 - wyniki testów (WA / TLE / RE / …)
 - ranking per zadanie i globalny

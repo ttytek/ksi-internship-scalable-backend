@@ -16,10 +16,13 @@ from pathlib import Path
 
 # Import modeli przed create_all.
 import ksi.domain.entities  # noqa: F401
-from ksi.db.base import Base
+from ksi.db.schema import ensure_schema
 from ksi.db.session import get_engine, get_session_factory
 from ksi.domain.entities import Task, TaskTest
 from ksi.domain.enums import TaskJudgeMode, TestVisibility
+from ksi.services.pack_attach import attach_main_pack
+from ksi.services.storage import StorageNotConfigured, get_storage
+from ksi.services.test_pack import build_pack
 
 
 def _slugify(name: str) -> str:
@@ -86,31 +89,26 @@ def import_file(session, path: Path, *, skip_existing: bool) -> str:
     session.add(task)
     session.flush()
 
-    ordinal = 1
-    for inp, out in public:
+    for i, (inp, out) in enumerate(public, start=1):
         session.add(
             TaskTest(
                 task_id=task.id,
-                ordinal=ordinal,
+                ordinal=i,
                 visibility=TestVisibility.PUBLIC,
                 input=inp,
                 expected_output=out,
-                points=1,
+                points=0,
             )
         )
-        ordinal += 1
-    for inp, out in hidden:
-        session.add(
-            TaskTest(
-                task_id=task.id,
-                ordinal=ordinal,
-                visibility=TestVisibility.HIDDEN,
-                input=inp,
-                expected_output=out,
-                points=1,
+
+    if hidden:
+        storage = get_storage()
+        if storage is None:
+            raise StorageNotConfigured(
+                "S3 is not configured but this problem has private/generated tests"
             )
-        )
-        ordinal += 1
+        pack = build_pack([(inp, out, 1) for inp, out in hidden])
+        attach_main_pack(session, task, pack, storage=storage)
 
     return f"ok   {slug} (public={len(public)}, hidden={len(hidden)})"
 
@@ -150,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
         files = files[: args.limit]
 
     engine = get_engine()
-    Base.metadata.create_all(bind=engine)
+    ensure_schema(engine)
     factory = get_session_factory()
     session = factory()
 

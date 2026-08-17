@@ -13,12 +13,14 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
     Uuid,
     func,
+    text,
 )
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -90,20 +92,75 @@ class Task(Base):
         cascade="all, delete-orphan",
         order_by="TaskTest.ordinal",
     )
+    pack_revisions: Mapped[list[TaskTestPackRevision]] = relationship(
+        back_populates="task",
+        cascade="all, delete-orphan",
+        order_by="TaskTestPackRevision.revision",
+    )
     submissions: Mapped[list[Submission]] = relationship(back_populates="task")
+
+
+class TaskTestPackRevision(Base):
+    """Niezmienna rewizja zipa z testami głównymi (obiekt w S3)."""
+
+    __tablename__ = "task_test_pack_revisions"
+    __table_args__ = (
+        UniqueConstraint("task_id", "revision", name="uq_task_test_pack_revisions_task_revision"),
+        Index(
+            "uq_pack_rev_current",
+            "task_id",
+            unique=True,
+            sqlite_where=text("is_current"),
+            postgresql_where=text("is_current"),
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    task_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    s3_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    etag: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    task: Mapped[Task] = relationship(back_populates="pack_revisions")
+    tests: Mapped[list[TaskTest]] = relationship(back_populates="pack_revision")
 
 
 class TaskTest(Base):
     """
     Pojedynczy przypadek testowy zadania.
 
-    ``public`` — przykłady widoczne w treści; ``hidden`` — tylko do sędziowania.
+    ``public`` — przykłady (I/O w kolumnach, 0 pkt); ``hidden`` — pack S3.
     """
 
     __test__ = False
 
     __tablename__ = "task_tests"
-    __table_args__ = (UniqueConstraint("task_id", "ordinal", name="uq_task_tests_task_ordinal"),)
+    __table_args__ = (
+        Index(
+            "uq_task_tests_sample_ordinal",
+            "task_id",
+            "ordinal",
+            unique=True,
+            sqlite_where=text("pack_revision_id IS NULL"),
+            postgresql_where=text("pack_revision_id IS NULL"),
+        ),
+        Index(
+            "uq_task_tests_pack_ordinal",
+            "pack_revision_id",
+            "ordinal",
+            unique=True,
+            sqlite_where=text("pack_revision_id IS NOT NULL"),
+            postgresql_where=text("pack_revision_id IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     task_id: Mapped[UUID] = mapped_column(
@@ -114,11 +171,20 @@ class TaskTest(Base):
         SAEnum(TestVisibility, name="test_visibility", native_enum=False, length=16),
         nullable=False,
     )
-    input: Mapped[str] = mapped_column(Text, nullable=False)
-    expected_output: Mapped[str] = mapped_column(Text, nullable=False)
+    input: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expected_output: Mapped[str | None] = mapped_column(Text, nullable=True)
     points: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    pack_revision_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("task_test_pack_revisions.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    input_member: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    output_member: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     task: Mapped[Task] = relationship(back_populates="tests")
+    pack_revision: Mapped[TaskTestPackRevision | None] = relationship(back_populates="tests")
     results: Mapped[list[TestResult]] = relationship(back_populates="test")
 
 

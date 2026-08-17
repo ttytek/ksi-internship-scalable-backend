@@ -3,8 +3,10 @@
 from uuid import UUID
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from ksi.domain.entities import Task, User
+from ksi.domain.entities import Task, TestResult, User
+from ksi.domain.enums import TestVisibility
 
 
 def test_health_returns_ok(client: TestClient) -> None:
@@ -58,9 +60,9 @@ def test_submit_and_accept(
     assert detail.status_code == 200
     body = detail.json()
     assert body["status"] == "accepted"
-    # Hidden test still counts toward score, but is not returned in detail.
-    assert body["score"] == 2
-    assert body["max_score"] == 2
+    # Main pack counts toward score; only public sample results are returned.
+    assert body["score"] == 1
+    assert body["max_score"] == 1
     assert len(body["test_results"]) == 1
 
     public = body["test_results"][0]
@@ -75,6 +77,7 @@ def test_submit_wrong_answer(
     client: TestClient,
     sample_user: User,
     sample_task: Task,
+    db_session: Session,
 ) -> None:
     r = client.post(
         f"/tasks/{sample_task.id}/submissions",
@@ -89,6 +92,12 @@ def test_submit_wrong_answer(
     body = client.get(f"/submissions/{sub_id}").json()
     assert body["status"] == "wrong_answer"
     assert body["score"] == 0
+    assert body["max_score"] == 1
+
+    db_session.expire_all()
+    rows = db_session.query(TestResult).filter(TestResult.submission_id == UUID(sub_id)).all()
+    assert len(rows) == 1
+    assert rows[0].test.visibility == TestVisibility.PUBLIC
 
 
 def test_task_ranking_after_accept(
@@ -126,7 +135,7 @@ def test_create_task_endpoint(client: TestClient) -> None:
                     "visibility": "public",
                     "input": "1 2\n",
                     "expected_output": "3\n",
-                    "points": 1,
+                    "points": 0,
                 }
             ],
         },

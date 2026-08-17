@@ -13,9 +13,28 @@ import ksi.domain.entities  # noqa: F401 — rejestracja tabel
 from ksi.api.deps import get_db
 from ksi.db import session as db_mod
 from ksi.db.base import Base
+from ksi.db.schema import ensure_schema
 from ksi.domain.entities import Task, TaskTest, User
 from ksi.domain.enums import TaskJudgeMode, TestVisibility
 from ksi.main import create_app
+from ksi.services.pack_attach import attach_main_pack
+from ksi.services.storage import InMemoryStorage, reset_overrides, set_cache_dir, set_storage
+from ksi.services.test_pack import build_pack
+
+
+@pytest.fixture(autouse=True)
+def _isolate_storage(tmp_path) -> Generator[None, None, None]:
+    reset_overrides()
+    set_cache_dir(tmp_path / "ksi-pack-cache")
+    yield
+    reset_overrides()
+
+
+@pytest.fixture()
+def fake_storage() -> InMemoryStorage:
+    store = InMemoryStorage()
+    set_storage(store)
+    return store
 
 
 @pytest.fixture()
@@ -32,7 +51,7 @@ def db_engine():
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 
-    Base.metadata.create_all(bind=engine)
+    ensure_schema(engine)
     yield engine
     Base.metadata.drop_all(bind=engine)
     engine.dispose()
@@ -94,7 +113,7 @@ def sample_user(db_session: Session) -> User:
 
 
 @pytest.fixture()
-def sample_task(db_session: Session) -> Task:
+def sample_task(db_session: Session, fake_storage: InMemoryStorage) -> Task:
     task = Task(
         id=uuid4(),
         slug="echo",
@@ -114,18 +133,14 @@ def sample_task(db_session: Session) -> Task:
             visibility=TestVisibility.PUBLIC,
             input="hello\n",
             expected_output="hello\n",
-            points=1,
+            points=0,
         )
     )
-    db_session.add(
-        TaskTest(
-            task_id=task.id,
-            ordinal=2,
-            visibility=TestVisibility.HIDDEN,
-            input="world\n",
-            expected_output="world\n",
-            points=1,
-        )
+    attach_main_pack(
+        db_session,
+        task,
+        build_pack([("world\n", "world\n", 1)]),
+        storage=fake_storage,
     )
     db_session.commit()
     db_session.refresh(task)

@@ -7,6 +7,7 @@ from ksi.domain import (
     Task,
     TaskJudgeMode,
     TaskTest,
+    TaskTestPackRevision,
     TestResult,
     TestVerdict,
     TestVisibility,
@@ -15,7 +16,7 @@ from ksi.domain import (
 
 
 def test_models_are_sqlalchemy_orm() -> None:
-    for model in (User, Task, TaskTest, Submission, TestResult):
+    for model in (User, Task, TaskTest, TaskTestPackRevision, Submission, TestResult):
         assert issubclass(model, Base)
         assert hasattr(model, "__tablename__")
 
