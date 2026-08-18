@@ -18,7 +18,7 @@ from pathlib import Path
 import ksi.domain.entities  # noqa: F401
 from ksi.db.schema import ensure_schema
 from ksi.db.session import get_engine, get_session_factory
-from ksi.domain.entities import Task, TaskTest
+from ksi.domain.entities import Submission, Task, TaskTest
 from ksi.domain.enums import TaskJudgeMode, TestVisibility
 from ksi.services.pack_attach import attach_main_pack
 from ksi.services.storage import StorageNotConfigured, get_storage
@@ -70,6 +70,7 @@ def import_file(session, path: Path, *, skip_existing: bool) -> str:
     if existing is not None:
         if skip_existing:
             return f"skip {slug}"
+        session.query(Submission).filter(Submission.task_id == existing.id).delete()
         session.delete(existing)
         session.flush()
 
