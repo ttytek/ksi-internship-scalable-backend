@@ -192,11 +192,20 @@ class Submission(Base):
     """
     Zgłoszenie — rozwiązanie użytkownika do konkretnego zadania.
 
-    Kod trafia do kolejki; w tle worker pobiera zgłoszenie, uruchamia testerkę
+    Kod trafia do kolejki; worker checkera pobiera zgłoszenie, uruchamia testerkę
     (proste porównanie albo sprawdzarkę) i zapisuje wyniki testów.
     """
 
     __tablename__ = "submissions"
+    __table_args__ = (
+        Index(
+            "ix_submissions_queued_by_task",
+            "task_id",
+            "created_at",
+            sqlite_where=text("status = 'queued'"),
+            postgresql_where=text("status = 'queued'"),
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     task_id: Mapped[UUID] = mapped_column(
@@ -221,6 +230,16 @@ class Submission(Base):
         nullable=False,
     )
     judged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    judge_claim_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    judge_attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    queue_published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     user: Mapped[User] = relationship(back_populates="submissions")
     task: Mapped[Task] = relationship(back_populates="submissions")
@@ -242,6 +261,13 @@ class TestResult(Base):
     __test__ = False
 
     __tablename__ = "test_results"
+    __table_args__ = (
+        UniqueConstraint(
+            "submission_id",
+            "test_id",
+            name="uq_test_results_submission_test",
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     submission_id: Mapped[UUID] = mapped_column(

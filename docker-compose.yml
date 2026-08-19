@@ -1,0 +1,86 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ksi
+      POSTGRES_PASSWORD: ksi
+      POSTGRES_DB: ksi
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ksi -d ksi"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - backend/.env
+    environment:
+      APP_PORT: "8000"
+      APP_NAME: ksi
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://ksi:ksi@db:5432/ksi
+      REDIS_URL: redis://redis:6379/0
+      REDIS_STREAM: ksi.submissions
+      CHECKER_DATABASE_PASSWORD: ksi_checker
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ.get('APP_PORT','8000'))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  checker:
+    build:
+      context: .
+      dockerfile: checker/Dockerfile
+    env_file:
+      - backend/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://ksi_checker:ksi_checker@db:5432/ksi
+      REDIS_URL: redis://redis:6379/0
+      REDIS_STREAM: ksi.submissions
+      REDIS_GROUP: checkers
+      CHECKER_CONCURRENCY: "1"
+      CHECKER_MAX_ATTEMPTS: "3"
+      S3_CACHE_DIR: /var/cache/ksi-packs
+    volumes:
+      - checker-packs:/var/cache/ksi-packs
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  checker-packs:

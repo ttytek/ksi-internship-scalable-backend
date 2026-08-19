@@ -1,42 +1,4 @@
-services:
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: ksi
-      POSTGRES_PASSWORD: ksi
-      POSTGRES_DB: ksi
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ksi -d ksi"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  api:
-    build: .
-    ports:
-      - "${APP_PORT}:${APP_PORT}"
-    env_file:
-      - .env
-    environment:
-      APP_PORT: "${APP_PORT}"
-      APP_NAME: ksi
-      APP_ENV: development
-      DATABASE_URL: postgresql+psycopg://ksi:ksi@db:5432/ksi
-      S3_ENDPOINT_URL: "${S3_ENDPOINT_URL:-}"
-      S3_BUCKET: "${S3_BUCKET:-}"
-      S3_REGION: "${S3_REGION:-us-east-1}"
-      S3_ACCESS_KEY: "${S3_ACCESS_KEY:-}"
-      S3_SECRET_KEY: "${S3_SECRET_KEY:-}"
-      S3_PREFIX: "${S3_PREFIX:-}"
-      S3_PATH_STYLE: "${S3_PATH_STYLE:-true}"
-      S3_CACHE_DIR: "${S3_CACHE_DIR:-}"
-    depends_on:
-      db:
-        condition: service_healthy
-
-volumes:
-  pgdata:
+# Wrapper so `cd backend && docker compose up` still works.
+# Canonical file is the repo-root docker-compose.yml (volume: ksi_pgdata).
+include:
+  - path: ../docker-compose.yml

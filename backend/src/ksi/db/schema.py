@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+import logging
+import re
+
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
 import ksi.domain.entities  # noqa: F401
+from ksi.config import get_settings
 from ksi.db.base import Base
 from ksi.domain.entities import TaskTest
+
+logger = logging.getLogger(__name__)
+
+_CHECKER_ROLE = "ksi_checker"
 
 _TASK_TEST_COLUMNS = (
     "id",
@@ -24,7 +32,7 @@ _TASK_TEST_COLUMNS = (
 
 
 def ensure_schema(engine: Engine) -> None:
-    """Create missing tables, then ALTER `task_tests` if pack columns/indexes are absent."""
+    """Create missing tables, then ALTER existing ones and grant the checker role."""
     Base.metadata.create_all(bind=engine)
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
@@ -38,6 +46,17 @@ def ensure_schema(engine: Engine) -> None:
             ON task_test_pack_revisions (task_id) WHERE is_current
             """,
         )
+    if "submissions" in tables:
+        _upgrade_submissions(engine, inspect(engine))
+    if "test_results" in tables:
+        _ensure_index(
+            engine,
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_test_results_submission_test
+            ON test_results (submission_id, test_id)
+            """,
+        )
+    ensure_checker_role(engine)
 
 
 def _upgrade_task_tests(engine: Engine, inspector: object) -> None:
@@ -164,3 +183,85 @@ def _has_fk(inspector: object, column: str) -> bool:
 def _ensure_index(engine: Engine, ddl: str) -> None:
     with engine.begin() as conn:
         conn.execute(text(ddl))
+
+
+def _upgrade_submissions(engine: Engine, inspector: object) -> None:
+    cols = {c["name"] for c in inspector.get_columns("submissions")}
+    if engine.dialect.name == "postgresql":
+        ts, uid = "TIMESTAMP WITH TIME ZONE", "UUID"
+    else:
+        ts, uid = "DATETIME", "CHAR(32)"
+    statements: list[str] = []
+    if "lease_expires_at" not in cols:
+        statements.append(f"ALTER TABLE submissions ADD COLUMN lease_expires_at {ts}")
+    if "judge_claim_id" not in cols:
+        statements.append(f"ALTER TABLE submissions ADD COLUMN judge_claim_id {uid}")
+    if "judge_attempts" not in cols:
+        statements.append(
+            "ALTER TABLE submissions ADD COLUMN judge_attempts INTEGER NOT NULL DEFAULT 0"
+        )
+    if "queue_published_at" not in cols:
+        statements.append(f"ALTER TABLE submissions ADD COLUMN queue_published_at {ts}")
+    statements.append(
+        "CREATE INDEX IF NOT EXISTS ix_submissions_queued_by_task "
+        "ON submissions (task_id, created_at) WHERE status = 'queued'"
+    )
+    with engine.begin() as conn:
+        for stmt in statements:
+            conn.execute(text(stmt))
+
+
+def ensure_checker_role(bind: object) -> None:
+    """Create login role `ksi_checker` with a restricted GRANT (PostgreSQL only)."""
+    dialect = getattr(getattr(bind, "dialect", None), "name", None)
+    if dialect != "postgresql":
+        return
+    settings = get_settings()
+    password = settings.checker_database_password
+    if not re.fullmatch(r"[A-Za-z0-9_]+", password):
+        logger.warning("Refusing to create ksi_checker: password is not alphanumeric")
+        return
+    url = getattr(bind, "url", None) or getattr(getattr(bind, "engine", None), "url", None)
+    db_name = getattr(url, "database", None) or "ksi"
+
+    def _run(conn: object) -> None:
+        conn.execute(
+            text(
+                f"""
+                DO $$ BEGIN
+                  IF NOT EXISTS (
+                    SELECT FROM pg_catalog.pg_roles WHERE rolname = '{_CHECKER_ROLE}'
+                  ) THEN
+                    CREATE ROLE {_CHECKER_ROLE} LOGIN PASSWORD '{password}';
+                  ELSE
+                    ALTER ROLE {_CHECKER_ROLE} WITH LOGIN PASSWORD '{password}';
+                  END IF;
+                END $$;
+                """
+            )
+        )
+        conn.execute(text(f'GRANT CONNECT ON DATABASE "{db_name}" TO {_CHECKER_ROLE}'))
+        conn.execute(text(f"GRANT USAGE ON SCHEMA public TO {_CHECKER_ROLE}"))
+        conn.execute(
+            text(
+                f"GRANT SELECT ON TABLE tasks, task_tests, task_test_pack_revisions, "
+                f"submissions TO {_CHECKER_ROLE}"
+            )
+        )
+        conn.execute(
+            text(f"GRANT SELECT, INSERT, DELETE ON TABLE test_results TO {_CHECKER_ROLE}")
+        )
+        conn.execute(
+            text(
+                f"GRANT UPDATE ("
+                f"status, score, max_score, compile_message, judged_at, "
+                f"lease_expires_at, judge_claim_id, judge_attempts, queue_published_at"
+                f") ON submissions TO {_CHECKER_ROLE}"
+            )
+        )
+
+    if isinstance(bind, Engine):
+        with bind.begin() as conn:
+            _run(conn)
+    else:
+        _run(bind)

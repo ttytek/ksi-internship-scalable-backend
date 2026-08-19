@@ -1,6 +1,7 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
 
 from ksi.api.deps import get_db
@@ -12,7 +13,7 @@ from ksi.schemas.submission import (
     SubmissionSummary,
     TestResultOut,
 )
-from ksi.services.judge import judge_submission_by_id
+from ksi.services.queue import publish_submission
 
 router = APIRouter(tags=["submissions"])
 
@@ -25,7 +26,6 @@ router = APIRouter(tags=["submissions"])
 def create_submission(
     task_id: UUID,
     body: SubmissionCreate,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ) -> SubmissionSummary:
     task = db.get(Task, task_id)
@@ -47,7 +47,9 @@ def create_submission(
     db.commit()
     db.refresh(submission)
 
-    background_tasks.add_task(judge_submission_by_id, submission.id)
+    if publish_submission(submission.id):
+        submission.queue_published_at = datetime.now(UTC)
+        db.commit()
 
     return SubmissionSummary(
         id=submission.id,

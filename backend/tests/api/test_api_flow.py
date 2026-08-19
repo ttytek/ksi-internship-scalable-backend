@@ -1,12 +1,15 @@
-"""Integracyjne testy API (SQLite + sędzia Python)."""
+"""Integracyjne testy API (SQLite, bez sędziego)."""
 
-from uuid import UUID
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from ksi.domain.entities import Task, TestResult, User
-from ksi.domain.enums import TestVisibility
+from ksi.domain.entities import Submission, Task, User
+from ksi.domain.enums import SubmissionStatus
+from ksi.services.queue import publish_submission
 
 
 def test_health_returns_ok(client: TestClient) -> None:
@@ -42,74 +45,78 @@ def test_list_and_get_task(client: TestClient, sample_task: Task) -> None:
     assert data["public_tests"][0]["input"] == "hello\n"
 
 
-def test_submit_and_accept(
+def test_submit_returns_queued(
     client: TestClient,
     sample_user: User,
     sample_task: Task,
 ) -> None:
     code = "import sys\nprint(sys.stdin.read(), end='')\n"
-    # TestClient wykonuje BackgroundTasks synchronicznie przed zwróceniem odpowiedzi.
     r = client.post(
         f"/tasks/{sample_task.id}/submissions",
         json={"user_id": str(sample_user.id), "source_code": code, "language": "python"},
     )
     assert r.status_code == 201
+    assert r.json()["status"] == "queued"
     sub_id = r.json()["id"]
 
     detail = client.get(f"/submissions/{sub_id}")
     assert detail.status_code == 200
     body = detail.json()
-    assert body["status"] == "accepted"
-    # Main pack counts toward score; only public sample results are returned.
-    assert body["score"] == 1
-    assert body["max_score"] == 1
-    assert len(body["test_results"]) == 1
-
-    public = body["test_results"][0]
-    assert public["visibility"] == "public"
-    assert public["ordinal"] == 1
-    assert public["input"] == "hello\n"
-    assert public["actual_output"] is not None
-    assert all(tr["visibility"] == "public" for tr in body["test_results"])
+    assert body["status"] == "queued"
+    assert body["test_results"] == []
 
 
-def test_submit_wrong_answer(
+def test_submit_calls_publish(
     client: TestClient,
     sample_user: User,
     sample_task: Task,
-    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    published: list[UUID] = []
+    monkeypatch.setattr(
+        "ksi.api.routes.submissions.publish_submission",
+        lambda sid: published.append(sid),
+    )
     r = client.post(
         f"/tasks/{sample_task.id}/submissions",
         json={
             "user_id": str(sample_user.id),
-            "source_code": "print('nope')\n",
+            "source_code": "print(1)\n",
             "language": "python",
         },
     )
     assert r.status_code == 201
-    sub_id = r.json()["id"]
-    body = client.get(f"/submissions/{sub_id}").json()
-    assert body["status"] == "wrong_answer"
-    assert body["score"] == 0
-    assert body["max_score"] == 1
+    assert published == [UUID(r.json()["id"])]
 
-    db_session.expire_all()
-    rows = db_session.query(TestResult).filter(TestResult.submission_id == UUID(sub_id)).all()
-    assert len(rows) == 1
-    assert rows[0].test.visibility == TestVisibility.PUBLIC
+
+def test_publish_submission_swallows_redis_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Boom:
+        def xadd(self, *args: object, **kwargs: object) -> None:
+            raise ConnectionError("redis down")
+
+    monkeypatch.setattr("ksi.services.queue._redis", lambda: Boom())
+    publish_submission(uuid4())
 
 
 def test_task_ranking_after_accept(
     client: TestClient,
     sample_user: User,
     sample_task: Task,
+    db_session: Session,
 ) -> None:
-    code = "import sys\nprint(sys.stdin.read(), end='')\n"
-    client.post(
-        f"/tasks/{sample_task.id}/submissions",
-        json={"user_id": str(sample_user.id), "source_code": code, "language": "python"},
+    db_session.add(
+        Submission(
+            task_id=sample_task.id,
+            user_id=sample_user.id,
+            source_code="print(1)\n",
+            language="python",
+            status=SubmissionStatus.ACCEPTED,
+            score=1,
+            max_score=1,
+            judged_at=datetime.now(UTC),
+        )
     )
+    db_session.commit()
 
     ranking = client.get(f"/tasks/{sample_task.id}/ranking")
     assert ranking.status_code == 200

@@ -1,16 +1,15 @@
-.PHONY: up down build test lint install seed
+.PHONY: test lint install seed up down
+
+COMPOSE = docker compose -f ../docker-compose.yml --project-directory ..
 
 install:
 	pip install -e ".[dev]"
 
 up:
-	docker compose up --build
+	$(COMPOSE) up --build
 
 down:
-	docker compose down
-
-build:
-	docker compose build
+	$(COMPOSE) down
 
 test:
 	pytest -q

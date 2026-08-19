@@ -4,131 +4,69 @@ MVP w stylu LeetCode: użytkownicy przeglądają zadania, wysyłają rozwiązani
 
 ## Struktura
 
-| Katalog | Opis |
-|---------|------|
-| `backend/` | FastAPI + SQLAlchemy + **Postgres** |
-| `frontend/` | React (Vite) |
+| Katalog / serwis | Opis |
+|------------------|------|
+| `frontend/` | React (Vite). Tylko rozmawia z API. `npm run dev`. |
+| `backend/` | FastAPI: użytkownicy, zadania, zgłoszenia, ranking. **Właściciel Postgresa** (schemat, migracje). Nie uruchamia kodu użytkownika. |
+| `checker/` | Worker sędziego. Redis Streams + claim w Postgresie. Skalowanie: `docker compose up --scale checker=N`. |
 | `dataset/` | Przykładowe zadania (JSON) |
 
-## Elementy systemu
+Infra: **Postgres**, **Redis**, **S3** (packi ukrytych testów).
 
-1. **Postgres** — baza danych  
-2. **API** (FastAPI, port domyślnie `8000` lub z `.env`) — logika, sędzia  
-3. **Seed** — jednorazowy import zadań z `dataset/problems`  
-4. **Frontend** (Vite, port `5173`) — UI  
+```
+browser → API: INSERT queued → 201
+                └ XADD submission_id (gdy Redis leży: i tak 201)
+
+checker: sticky drain zadania P z DB, inaczej XREADGROUP
+         → claim w Postgresie → subprocess → zapis wyników
+```
 
 ---
 
 ## Uruchomienie od zera (zalecane)
 
-Wszystkie komendy poniżej zakładają katalog główny repozytorium:
-
-```bash
-cd /ścieżka/do/ksi
-```
+Wszystkie komendy poniżej zakładają katalog główny repozytorium.
 
 ### Wymagania
 
 - Python **3.12+**
-- Node.js **18+** (u Ciebie jest 21 — OK)
+- Node.js **18+**
 - Docker + Docker Compose
-- Użytkownik w grupie `docker` (albo używasz `sudo docker …`)
 
-```bash
-# raz: grupa docker (potem wyloguj i zaloguj się ponownie)
-sudo usermod -aG docker $USER
-
-# Docker musi być włączony
-sudo systemctl start docker
-sudo systemctl enable docker   # opcjonalnie: start przy bootowaniu
-```
-
-### Krok 1 — Postgres (Docker)
+### Krok 1 — Postgres, Redis, API, checker
 
 ```bash
 cd backend
+cp .env.example .env   # uzupełnij S3_* jeśli seedujesz packi
+cd ..
 
-# jeśli plik .env nie istnieje:
-cp .env.example .env
-# w .env możesz ustawić np. APP_PORT=8000
+docker compose up --build
+# poziomo: docker compose up --build --scale checker=3
 ```
 
-**Uwaga o porcie 5432:** jeśli na hoście już działa systemowy Postgres, kontener nie wystartuje albo seed dostanie błąd hasła (`user "ksi"`). Wtedy:
+- API: http://127.0.0.1:8000 (`/health`, `/docs`) — w compose zawsze port 8000
+- Postgres: `localhost:5432` (user/hasło/baza: `ksi`)
+- Redis: `localhost:6379`
 
-- w `docker-compose.yml` zmień mapowanie na `"5433:5432"` (albo inny wolny port), **oraz**
-- ustaw w środowisku / `.env`:
+`S3_*` biorą się z `backend/.env` (`env_file`). Compose **nie** interpoluje tego pliku: puste `${S3_*}` w `environment:` by je nadpisało, więc tam zostają tylko URL-e serwisów (`DATABASE_URL`, `REDIS_URL`). `APP_PORT` w `backend/.env` dotyczy lokalnego `uvicorn`, nie mapowania Dockera.
 
-```bash
-DATABASE_URL=postgresql+psycopg://ksi:ksi@localhost:5433/ksi
-```
+Wolumen bazy to `ksi_pgdata` (nie `backend_pgdata`). Gdy hostowy Postgres zajmuje 5432, zmień w `docker-compose.yml` mapowanie na `"5433:5432"` i `DATABASE_URL` na porcie 5433.
 
-Start bazy:
+`cd backend && docker compose up` nadal działa (wrapper `include` + `make up`).
 
-```bash
-docker compose up -d db
-docker compose ps          # db = healthy
-```
+API przy starcie tworzy schemat i rolę `ksi_checker` (ograniczone GRANT-y). Checkery ładują się po zdrowym API.
 
-Sprawdzenie połączenia:
-
-```bash
-# hasło: ksi
-psql "postgresql://ksi:ksi@localhost:5432/ksi" -c 'SELECT 1'
-# jeśli mapowałeś na 5433 — zamień port w URL
-```
-
-### Krok 2 — Backend (API)
+### Krok 2 — Seed zadań (osobny terminal)
 
 ```bash
 cd backend
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-
-# domyślnie: postgresql+psycopg://ksi:ksi@localhost:5432/ksi
-# nadpisz tylko jeśli zmieniasz port / hasło:
-# export DATABASE_URL=postgresql+psycopg://ksi:ksi@localhost:5433/ksi
-
-uvicorn ksi.main:app --reload --app-dir src --host 0.0.0.0 --port 8000
-```
-
-Jeśli w `backend/.env` masz `APP_PORT=8888`, użyj tego portu konsekwentnie:
-
-```bash
-uvicorn ksi.main:app --reload --app-dir src --host 0.0.0.0 --port 8888
-```
-
-Sprawdzenie:
-
-```bash
-curl http://127.0.0.1:8000/health
-# {"status":"ok"}
-```
-
-Dokumentacja API: http://127.0.0.1:8000/docs  
-
-*(zostaw ten terminal włączony)*
-
-### Krok 3 — Seed zadań (osobny terminal)
-
-Zadania z testami prywatnymi/generowanymi idą do S3 (zip per rewizja). Uzupełnij w `backend/.env` zmienne `S3_*` z `.env.example`.
-
-Bez bucketa / kluczy seed **nie** zaimportuje `brcktsrm` itd. — oczekiwany wynik to
-`ERR  …: S3 is not configured but this problem has private/generated tests`.
-Same przykłady publiczne seedują się bez S3.
-
-```bash
-cd backend
-source .venv/bin/activate
-# ten sam DATABASE_URL co API
 python -m ksi.scripts.seed_dataset --dir ../dataset/problems
 ```
 
-Z działającym S3: linie `ok   brcktsrm …`, `ok   comm3 …` itd.
-
-Doklejenie nowej rewizji packa: `python -m ksi.scripts.attach_main_pack --slug … --zip pack.zip`.
-
-### Krok 4 — Frontend (osobny terminal)
+### Krok 3 — Frontend (osobny terminal)
 
 ```bash
 cd frontend
@@ -137,60 +75,46 @@ npm run dev
 ```
 
 UI: http://127.0.0.1:5173  
+Frontend proxy’uje `/api` → backend (zob. `frontend/vite.config.ts`).
 
-Frontend proxy’uje `/api` → `http://127.0.0.1:8000`.  
-Jeśli API działa na **innym porcie** (np. `8888`), zmień `frontend/vite.config.ts` (`server.proxy["/api"].target`).
+### Lokalnie bez Dockera (API + checker)
 
-### Krok 5 — Użycie
-
-1. Otwórz http://127.0.0.1:5173  
-2. **Zaloguj** — wpisz username (bez hasła; konto powstanie automatycznie)  
-3. Lista **Zadań** → treść → wklej kod Python → **Wyślij**  
-4. Zobacz wynik testów / ranking  
-
----
-
-## Alternatywa: API też w Dockerze
+Postgres i Redis i tak w compose:
 
 ```bash
+docker compose up -d db redis
+
+# terminal 1 — API (superuser DB)
 cd backend
-# ustaw APP_PORT w .env (np. 8000)
-docker compose up --build
-```
-
-To odpala **db + api**. Seed nadal odpalasz lokalnie (z venv) wskazując na hostowy port Postgresa:
-
-```bash
+source .venv/bin/activate
 export DATABASE_URL=postgresql+psycopg://ksi:ksi@localhost:5432/ksi
-python -m ksi.scripts.seed_dataset --dir ../dataset/problems
+export REDIS_URL=redis://localhost:6379/0
+uvicorn ksi.main:app --reload --app-dir src --host 0.0.0.0 --port 8000
+
+# terminal 2 — checker (po pierwszym starcie API, które zakłada rolę)
+cd checker
+pip install -e ".[dev]"
+export DATABASE_URL=postgresql+psycopg://ksi_checker:ksi_checker@localhost:5432/ksi
+export REDIS_URL=redis://localhost:6379/0
+python -m ksi_checker
 ```
 
----
-
-## Typowe problemy
-
-| Objaw | Przyczyna | Co zrobić |
-|-------|-----------|-----------|
-| `password authentication failed for user "ksi"` | Na porcie siedzi **inny** Postgres (systemowy), nie kontener `ksi` | Zmień port mapowania Dockera albo zatrzymaj systemowy Postgres |
-| `connection refused` / brak Dockera | Daemon wyłączony | `sudo systemctl start docker` |
-| `permission denied` na `docker.sock` | Brak grupy `docker` | `sudo usermod -aG docker $USER` + ponowne logowanie; tymczasowo `sudo docker compose …` |
-| Frontend nie widzi API | Zły port proxy | Dopasuj `vite.config.ts` do portu API |
-| Pusta lista zadań | Brak seeda albo seed bez S3 | Krok 3 — uzupełnij `S3_*` albo zaakceptuj `ERR … S3 is not configured` |
-| `ERR … S3 is not configured` przy seedzie | Puste `S3_BUCKET` / klucze; dataset ma generated tests | Uzupełnij `S3_*` w `.env` (bez MinIO w compose) |
+Jeśli rola jeszcze nie istnieje, odpal API raz albo użyj superusera tylko do debugowania.
 
 ---
 
 ## Co jest w MVP
 
 - użytkownik bez ról i bez hasła (login = username)
-- zadania z testami publicznymi (w DB) i ukrytymi (zip w S3, rewizje)
-- zgłoszenia + sędzia Python (porównanie stdout)
+- zadania z testami publicznymi (w DB) i ukrytymi (zip w S3)
+- zgłoszenia: API kolejkuje, **checker** sędziuje Pythona (stdout)
+- worker trzyma pack na dysku i **trzyma się tego zadania**, dopóki są `queued` zgłoszenia do niego
 - wyniki testów (WA / TLE / RE / …)
 - ranking per zadanie i globalny
 
 ## Świadomie poza MVP
 
 - pełna autentykacja (hasła, JWT)
-- sandbox bezpieczeństwa
+- sandbox bezpieczeństwa (kod użytkownika to `subprocess` w kontenerze checkera)
 - języki inne niż Python
 - tryb `checker` (jest w modelu, niezaimplementowany w sędzim)

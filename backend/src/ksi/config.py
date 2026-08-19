@@ -22,6 +22,10 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://ksi:ksi@localhost:5432/ksi"
 
+    redis_url: str = "redis://localhost:6379/0"
+    redis_stream: str = "ksi.submissions"
+    checker_database_password: str = "ksi_checker"
+
     s3_endpoint_url: str | None = None
     s3_bucket: str | None = None
     s3_region: str = "us-east-1"

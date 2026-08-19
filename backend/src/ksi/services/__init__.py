@@ -1,1 +1,1 @@
-"""Logika aplikacyjna (sędzia, rankingi)."""
+"""Logika aplikacyjna (kolejka, packi, rankingi)."""

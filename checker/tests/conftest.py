@@ -1,30 +1,21 @@
-"""Shared pytest fixtures."""
+"""Checker pytest fixtures (SQLite + in-memory S3)."""
 
 from collections.abc import Generator
 from uuid import uuid4
 
+import ksi.domain.entities  # noqa: F401
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
-
-import ksi.domain.entities  # noqa: F401 — rejestracja tabel
-from ksi.api.deps import get_db
 from ksi.db import session as db_mod
 from ksi.db.base import Base
 from ksi.db.schema import ensure_schema
 from ksi.domain.entities import Task, TaskTest, User
 from ksi.domain.enums import TaskJudgeMode, TestVisibility
-from ksi.main import create_app
 from ksi.services.pack_attach import attach_main_pack
 from ksi.services.storage import InMemoryStorage, reset_overrides, set_cache_dir, set_storage
 from ksi.services.test_pack import build_pack
-
-
-@pytest.fixture(autouse=True)
-def _stub_queue_publish(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("ksi.api.routes.submissions.publish_submission", lambda _sid: None)
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 
 @pytest.fixture(autouse=True)
@@ -81,29 +72,13 @@ def db_session(session_factory) -> Generator[Session, None, None]:
         session.close()
 
 
-@pytest.fixture()
-def client(db_engine, session_factory) -> Generator[TestClient, None, None]:
-    # Lifespan create_all + sędzia używają globalnego engine/factory — podmień na SQLite.
+@pytest.fixture(autouse=True)
+def _patch_engine(db_engine, session_factory) -> Generator[None, None, None]:
     original_engine = db_mod._engine
     original_factory = db_mod._session_factory
     db_mod._engine = db_engine
     db_mod._session_factory = session_factory
-
-    app = create_app()
-
-    def _override_db() -> Generator[Session, None, None]:
-        session = session_factory()
-        try:
-            yield session
-        finally:
-            session.close()
-
-    app.dependency_overrides[get_db] = _override_db
-
-    with TestClient(app) as c:
-        yield c
-
-    app.dependency_overrides.clear()
+    yield
     db_mod._engine = original_engine
     db_mod._session_factory = original_factory
 
